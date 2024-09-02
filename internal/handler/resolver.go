@@ -6,6 +6,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/newlo/identity/internal/service"
+	"github.com/newlo/identity/pkg/models"
 )
 
 func ResolveHandler(resolverService *service.ResolverService) http.HandlerFunc {
@@ -24,7 +25,15 @@ func ResolveHandler(resolverService *service.ResolverService) http.HandlerFunc {
 			return
 		}
 
+		response := map[string]interface{}{
+			models.JSONKeyContext: didDocument.Context,
+			models.JSONKeyID:      didDocument.ID,
+			"authentication":      didDocument.Authentication,
+			"verificationMethod":  didDocument.VerificationMethod,
+			"service":             didDocument.Service,
+		}
+
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(didDocument)
+		json.NewEncoder(w).Encode(response)
 	}
 }

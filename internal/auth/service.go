@@ -22,6 +22,24 @@ import (
 	"github.com/newlo/identity/pkg/utils"
 )
 
+type AuthenticationMethod func(credentials map[string]string) (*models.User, error)
+
+func (s *Service) Authenticate(authType string, credentials map[string]string) (*models.User, error) {
+	authMethods := map[string]AuthenticationMethod{
+		"iden3":   s.authenticateWithIden3,
+		"evm":     s.authenticateWithEVMWallet,
+		"x":       s.authenticateWithX,
+		"discord": s.authenticateWithDiscord,
+	}
+
+	authMethod, ok := authMethods[authType]
+	if !ok {
+		return nil, fmt.Errorf("unsupported authentication type: %s", authType)
+	}
+
+	return authMethod(credentials)
+}
+
 type Service struct {
 	cfg           *config.Config
 	privateKey    ed25519.PrivateKey
@@ -87,23 +105,33 @@ func NewService(clientStore store.ClientStore, cfg *config.Config, userStore sto
 	}, nil
 }
 
-func (s *Service) AuthenticateUser(authType string, credentials map[string]string) (*models.User, error) {
-	switch authType {
-	case "iden3":
-		return s.authenticateWithIden3(credentials["did"], []byte(credentials["proof"]))
-	case "evm":
-		return s.authenticateWithEVMWallet(credentials["address"], credentials["signature"], credentials["message"])
-	case "x":
-		return s.authenticateWithX(credentials["username"], credentials["token"])
-	case "discord":
-		return s.authenticateWithDiscord(credentials["id"], credentials["token"])
-	default:
-		return nil, fmt.Errorf("unsupported authentication type: %s", authType)
-	}
-}
+// func (s *Service) AuthenticateUser(authType string, credentials map[string]string) (*models.User, error) {
+// 	switch authType {
+// 	case "iden3":
+// 		return s.authenticateWithIden3(credentials["did"], []byte(credentials["proof"]))
+// 	case "evm":
+// 		return s.authenticateWithEVMWallet(credentials["address"], credentials["signature"], credentials["message"])
+// 	case "x":
+// 		return s.authenticateWithX(credentials["username"], credentials["token"])
+// 	case "discord":
+// 		return s.authenticateWithDiscord(credentials["id"], credentials["token"])
+// 	default:
+// 		return nil, fmt.Errorf("unsupported authentication type: %s", authType)
+// 	}
+// }
 
-func (s *Service) authenticateWithIden3(did string, proof []byte) (*models.User, error) {
-	valid, err := s.iden3Client.VerifyProof(did, proof)
+func (s *Service) authenticateWithIden3(credentials map[string]string) (*models.User, error) {
+	did, ok := credentials["did"]
+	if !ok {
+		return nil, errors.New("did is required")
+	}
+
+	proof, ok := credentials["proof"]
+	if !ok {
+		return nil, errors.New("proof is required")
+	}
+
+	valid, err := s.iden3Client.VerifyProof(did, []byte(proof))
 	if err != nil {
 		return nil, err
 	}
@@ -248,9 +276,11 @@ func (s *Service) ValidateAuthorizationCode(code, clientID, clientSecret string)
 }
 
 func (s *Service) validateClientSecret(clientID, clientSecret string) bool {
-	// In a real implementation, you would securely check the client secret
-	// This is a placeholder implementation
-	return true // Always returning true for this example
+	client, err := s.clientStore.GetClient(clientID)
+	if err != nil {
+		return false
+	}
+	return client.Secret == clientSecret
 }
 
 func (s *Service) ValidateClient(clientID, redirectURI string) bool {
@@ -450,7 +480,19 @@ func generateUniqueID() string {
 	return uuid.New().String()
 }
 
-func (s *Service) authenticateWithEVMWallet(address, signature, message string) (*models.User, error) {
+func (s *Service) authenticateWithEVMWallet(credentials map[string]string) (*models.User, error) {
+	address, ok := credentials["address"]
+	if !ok {
+		return nil, fmt.Errorf("address is required for EVM wallet authentication")
+	}
+	signature, ok := credentials["signature"]
+	if !ok {
+		return nil, fmt.Errorf("signature is required for EVM wallet authentication")
+	}
+	message, ok := credentials["message"]
+	if !ok {
+		return nil, fmt.Errorf("message is required for EVM wallet authentication")
+	}
 	// Verify EIP-191 signature
 	sig := hexToBytes(signature)
 	if len(sig) != 65 {
@@ -489,7 +531,15 @@ func (s *Service) authenticateWithEVMWallet(address, signature, message string) 
 	return user, nil
 }
 
-func (s *Service) authenticateWithX(username, token string) (*models.User, error) {
+func (s *Service) authenticateWithX(credentials map[string]string) (*models.User, error) {
+	username, ok := credentials["username"]
+	if !ok {
+		return nil, fmt.Errorf("username is required for X authentication")
+	}
+	token, ok := credentials["token"]
+	if !ok {
+		return nil, fmt.Errorf("token is required for X authentication")
+	}
 	// Verify token with X (Twitter) API
 	// This is a simplified example. In a real-world scenario, you would make an API call to X to verify the token.
 	xUser, err := s.verifyXToken(token)
@@ -549,7 +599,15 @@ func (s *Service) AuthenticateWithX(username, token string) (*models.User, error
 	return user, nil
 }
 
-func (s *Service) authenticateWithDiscord(discordID, token string) (*models.User, error) {
+func (s *Service) authenticateWithDiscord(credentials map[string]string) (*models.User, error) {
+	discordID, ok := credentials["discord_id"]
+	if !ok {
+		return nil, fmt.Errorf("discord_id is required for Discord authentication")
+	}
+	token, ok := credentials["token"]
+	if !ok {
+		return nil, fmt.Errorf("token is required for Discord authentication")
+	}
 	// Verify token with Discord API
 	// This is a simplified example. In a real-world scenario, you would make an API call to Discord to verify the token.
 	discordUser, err := s.verifyDiscordToken(token)

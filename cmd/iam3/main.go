@@ -28,10 +28,15 @@ func main() {
 
 	r := mux.NewRouter()
 
-	r.HandleFunc("/auth", handler.AuthHandler(authService)).Methods("POST")
-	r.HandleFunc("/token", handler.TokenHandler(authService)).Methods("POST")
-	r.HandleFunc("/userinfo", handler.UserInfoHandler(authService)).Methods("GET")
-	r.HandleFunc("/.well-known/jwks.json", handler.JWKSHandler(authService)).Methods("GET")
+	r.HandleFunc("/auth", handler.GenericAuthHandler(authService)).Methods("POST")
+	// r.HandleFunc("/auth", handler.AuthHandler(authService)).Methods("POST")
+	// r.HandleFunc("/token", handler.TokenHandler(authService)).Methods("POST")
+	// r.HandleFunc("/userinfo", handler.UserInfoHandler(authService)).Methods("GET")
+	// r.HandleFunc("/.well-known/jwks.json", handler.JWKSHandler(authService)).Methods("GET")
+	// r.HandleFunc("/auth/evm", handler.GenericSocialAuthHandler(authService, "evm")).Methods("POST")
+	// r.HandleFunc("/auth/x", handler.GenericSocialAuthHandler(authService, "x")).Methods("POST")
+	// r.HandleFunc("/auth/discord", handler.GenericSocialAuthHandler(authService, "discord")).Methods("POST")
+	// r.HandleFunc("/auth/iden3", handler.GenericSocialAuthHandler(authService, "iden3")).Methods("POST")
 
 	log.Printf("Starting IAM3 server on %s", cfg.ServerAddress)
 	log.Fatal(http.ListenAndServe(cfg.ServerAddress, r))
